@@ -1,5 +1,7 @@
 # MT Push Hooks
 
+[日本語](README.ja.md)
+
 Setup script for [MT — Mosh Terminal](https://jaga-farm.com/mt/) push notifications with Claude Code.
 
 MT uses Claude Code's **Hooks** to guarantee push notifications at the system level — task completion and permission requests reach your iPhone and Apple Watch instantly.
