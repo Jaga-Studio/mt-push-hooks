@@ -86,11 +86,17 @@ if [ "$AUTO_YES" = false ]; then
   echo "If you prefer, you can set up manually:"
   echo "  https://jaga-farm.com/mt/getting-started.html"
   echo ""
-  printf "Proceed? [y/N] "
-  read -r REPLY
-  if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
-    echo "Aborted. No changes were made."
-    exit 0
+  # Use /dev/tty for interactive input (works even when piped via curl | sh)
+  if [ -t 0 ] || [ -e /dev/tty ]; then
+    printf "Proceed? [y/N] " > /dev/tty
+    read -r REPLY < /dev/tty
+    if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+      echo "Aborted. No changes were made."
+      exit 0
+    fi
+  else
+    echo "Error: Non-interactive mode. Use --yes to skip confirmation."
+    exit 1
   fi
   echo ""
 fi
