@@ -1,21 +1,22 @@
 #!/bin/sh
 # MT Push Notification — Claude Code Hooks Setup Script
-# Usage: curl -sL https://raw.githubusercontent.com/Jagastudio/mt-push-hooks/main/setup-hooks.sh | sh -s YOUR-DEVICE-SECRET
+# Usage: curl -sL https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/setup-hooks.sh | sh -s YOUR-DEVICE-SECRET
 #
-# Adds MT Push notification hooks to ~/.claude/settings.json.
+# Downloads mt-push-notify.sh to ~/.claude/hooks/ and adds hooks to settings.json.
 # Requires Node.js (always available if Claude Code is installed).
 # Supports macOS, Linux, and Windows (WSL).
 
 set -e
 
 DEVICE_SECRET="${1:-}"
+SCRIPT_URL="https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/mt-push-notify.sh"
 
 # --- Validation ---
 if [ -z "$DEVICE_SECRET" ]; then
   echo "Error: Device Secret is required."
   echo ""
   echo "Usage:"
-  echo "  curl -sL https://raw.githubusercontent.com/Jagastudio/mt-push-hooks/main/setup-hooks.sh | sh -s YOUR-DEVICE-SECRET"
+  echo "  curl -sL https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/setup-hooks.sh | sh -s YOUR-DEVICE-SECRET"
   echo ""
   echo "Get your Device Secret from MT → Settings → Push Notifications."
   exit 1
@@ -34,25 +35,40 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- Run Node.js to merge hooks ---
+# --- Download and install mt-push-notify.sh ---
+HOOKS_DIR="$HOME/.claude/hooks"
+SCRIPT_PATH="$HOOKS_DIR/mt-push-notify.sh"
+
+mkdir -p "$HOOKS_DIR"
+
+echo "Downloading mt-push-notify.sh..."
+curl -sL "$SCRIPT_URL" -o "$SCRIPT_PATH.tmp"
+
+# Embed device secret into the script
+sed "s|__MT_DEVICE_SECRET__|$DEVICE_SECRET|g" "$SCRIPT_PATH.tmp" > "$SCRIPT_PATH"
+rm -f "$SCRIPT_PATH.tmp"
+chmod +x "$SCRIPT_PATH"
+echo "Installed: $SCRIPT_PATH"
+
+# --- Update settings.json ---
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const secret = process.argv[1];
+const scriptPath = process.argv[1];
 const claudeDir = path.join(process.env.HOME || process.env.USERPROFILE, ".claude");
 const settingsFile = path.join(claudeDir, "settings.json");
 
 const stopHook = {
   type: "command",
-  command: `curl -s -X POST https://mt-push.jaga-farm.com/v1/notify -H '\''Content-Type: application/json'\'' -d '\''{"token":"${secret}","event":"agent-done","message":"Task complete"}'\'' > /dev/null 2>&1 &`
+  command: scriptPath + " stop"
 };
 
 const notifHandler = {
   matcher: "permission_prompt",
   hooks: [{
     type: "command",
-    command: `curl -s -X POST https://mt-push.jaga-farm.com/v1/notify -H '\''Content-Type: application/json'\'' -d '\''{"token":"${secret}","event":"agent-input","message":"Permission needed"}'\'' > /dev/null 2>&1 &`
+    command: scriptPath + " notification"
   }]
 };
 
@@ -63,20 +79,55 @@ if (!fs.existsSync(claudeDir)) {
 
 // Load or create settings
 let settings = {};
+let mode = "fresh";
+
 if (fs.existsSync(settingsFile)) {
-  // Check for duplicates
   const raw = fs.readFileSync(settingsFile, "utf8");
-  if (raw.includes("mt-push.jaga-farm.com")) {
-    console.log("MT Push hooks are already configured in " + settingsFile);
-    console.log("To reconfigure, remove the existing mt-push entries first.");
+
+  if (raw.includes("mt-push-notify.sh")) {
+    // Already using the script — just refresh the script file (done above)
+    console.log("MT Push hooks are up to date. Script refreshed.");
     process.exit(0);
   }
 
   // Backup
   fs.copyFileSync(settingsFile, settingsFile + ".bak");
   console.log("Backed up existing settings to " + settingsFile + ".bak");
-
   settings = JSON.parse(raw);
+
+  if (raw.includes("mt-push.jaga-farm.com")) {
+    // Old inline curl hooks detected — upgrade
+    mode = "upgrade";
+    console.log("Upgrading from inline curl hooks to script-based hooks...");
+
+    // Remove old MT hooks from Stop
+    if (settings.hooks && settings.hooks.Stop) {
+      for (const group of settings.hooks.Stop) {
+        if (group.hooks) {
+          group.hooks = group.hooks.filter(h =>
+            !(h.command && h.command.includes("mt-push.jaga-farm.com"))
+          );
+        }
+      }
+      // Clean up empty groups
+      settings.hooks.Stop = settings.hooks.Stop.filter(g =>
+        !g.hooks || g.hooks.length > 0
+      );
+    }
+
+    // Remove old MT hooks from Notification
+    if (settings.hooks && settings.hooks.Notification) {
+      settings.hooks.Notification = settings.hooks.Notification.filter(handler => {
+        if (handler.hooks) {
+          handler.hooks = handler.hooks.filter(h =>
+            !(h.command && h.command.includes("mt-push.jaga-farm.com"))
+          );
+          return handler.hooks.length > 0;
+        }
+        return true;
+      });
+    }
+  }
 }
 
 // Ensure hooks structure
@@ -101,12 +152,16 @@ if (!settings.hooks.Notification) {
 // Write
 fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + "\n");
 console.log("Settings saved to " + settingsFile);
-' "$DEVICE_SECRET"
+
+if (mode === "upgrade") {
+  console.log("Hooks upgraded successfully!");
+}
+' "$SCRIPT_PATH"
 
 echo ""
 echo "✅ MT Push hooks installed successfully!"
 echo ""
-echo "  Stop hook     → agent-done (task completion)"
-echo "  Notification  → agent-input (permission needed)"
+echo "  Stop hook     → agent-done (shows Claude's last response)"
+echo "  Notification  → agent-input (shows actual permission request)"
 echo ""
 echo "Restart Claude Code for hooks to take effect."

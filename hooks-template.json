@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -X POST https://mt-push.jaga-farm.com/v1/notify -H 'Content-Type: application/json' -d '{\"token\":\"YOUR-DEVICE-SECRET\",\"event\":\"agent-done\",\"message\":\"Task complete\"}' > /dev/null 2>&1 &"
+            "command": "~/.claude/hooks/mt-push-notify.sh stop"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -X POST https://mt-push.jaga-farm.com/v1/notify -H 'Content-Type: application/json' -d '{\"token\":\"YOUR-DEVICE-SECRET\",\"event\":\"agent-input\",\"message\":\"Permission needed\"}' > /dev/null 2>&1 &"
+            "command": "~/.claude/hooks/mt-push-notify.sh notification"
           }
         ]
       }

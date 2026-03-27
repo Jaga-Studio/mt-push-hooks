@@ -4,7 +4,7 @@
 
 Setup script for [MT — Mosh Terminal](https://jaga-farm.com/mt/) push notifications with Claude Code.
 
-MT uses Claude Code's **Hooks** to guarantee push notifications at the system level — task completion and permission requests reach your iPhone and Apple Watch instantly.
+MT uses Claude Code's **Hooks** to send push notifications — task completion and permission requests reach your iPhone and Apple Watch with the **actual content** of what Claude was doing.
 
 ## Quick Setup
 
@@ -18,24 +18,30 @@ Replace `YOUR-DEVICE-SECRET` with the value from MT → Settings → Push Notifi
 
 ## What It Does
 
-The script adds two hooks to your `~/.claude/settings.json`:
+The script installs `~/.claude/hooks/mt-push-notify.sh` and adds two hooks to `~/.claude/settings.json`:
 
-| Hook | Event | When |
-|------|-------|------|
-| **Stop** | `agent-done` | Claude finishes responding |
-| **Notification** | `agent-input` | Claude needs your permission |
+| Hook | Event | Notification Content |
+|------|-------|---------------------|
+| **Stop** | `agent-done` | First 200 chars of Claude's last response |
+| **Notification** | `agent-input` | The actual permission request message |
 
 - Safely merges with your existing settings (no overwriting)
 - Creates a backup before modifying (`settings.json.bak`)
-- Skips if MT Push hooks are already configured
+- Automatically upgrades from older inline curl hooks
+- Re-running the script refreshes the notification script without duplicating hooks
+
+## Upgrading
+
+If you previously set up MT Push hooks, just re-run the setup command. It will automatically replace the old inline curl hooks with the new script-based version.
 
 ## Manual Setup
 
-If you prefer to configure manually, download [`hooks-template.json`](hooks-template.json) and merge it into your `~/.claude/settings.json`.
+If you prefer to configure manually:
 
-File locations:
-- macOS / Linux: `~/.claude/settings.json`
-- Windows: `%APPDATA%\claude\settings.json`
+1. Download [`mt-push-notify.sh`](mt-push-notify.sh) to `~/.claude/hooks/`
+2. Replace `__MT_DEVICE_SECRET__` with your device secret
+3. Make it executable: `chmod +x ~/.claude/hooks/mt-push-notify.sh`
+4. Merge [`hooks-template.json`](hooks-template.json) into `~/.claude/settings.json`
 
 ## Getting Started
 

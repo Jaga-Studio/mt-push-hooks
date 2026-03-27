@@ -2,7 +2,7 @@
 
 [MT — Mosh Terminal](https://jaga-farm.com/mt/) のプッシュ通知を Claude Code で使うためのセットアップスクリプトです。
 
-MT は Claude Code の**フック機構**を使い、タスク完了や許可リクエストをシステムレベルで検知。iPhone と Apple Watch にプッシュ通知を確実にお届けします。
+MT は Claude Code の**フック機構**を使い、タスク完了や許可リクエストを検知。**Claude が実際にやっていた内容**を iPhone と Apple Watch にプッシュ通知でお届けします。
 
 ## かんたんセットアップ
 
@@ -18,24 +18,28 @@ curl -sL https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/setup-
 
 ## 何をするスクリプト？
 
-`~/.claude/settings.json` に2つのフックを追加します：
+`~/.claude/hooks/mt-push-notify.sh` をインストールし、`~/.claude/settings.json` に 2 つのフックを追加します：
 
-| フック | イベント | タイミング |
-|--------|---------|-----------|
-| **Stop** | `agent-done` | Claude の応答完了時 |
-| **Notification** | `agent-input` | Claude が許可を求めるとき |
+| フック | イベント | 通知内容 |
+|--------|---------|---------|
+| **Stop** | `agent-done` | Claude の最後の応答（先頭200文字） |
+| **Notification** | `agent-input` | 実際のパーミッション要求内容 |
 
 - 既存の設定を安全にマージ（上書きしません）
 - 変更前にバックアップを作成（`settings.json.bak`）
-- MT Push が設定済みの場合はスキップ
+- 旧バージョン（インライン curl）からの自動アップグレード対応
+- 再実行するとスクリプトが最新版に更新されます（フックの重複なし）
+
+## アップグレード
+
+以前のバージョンをお使いの場合、同じセットアップコマンドを再実行するだけで自動的にアップグレードされます。
 
 ## 手動セットアップ
 
-スクリプトを使わない場合は、[`hooks-template.json`](hooks-template.json) をダウンロードして `~/.claude/settings.json` に手動でマージしてください。
-
-ファイルの場所：
-- macOS / Linux: `~/.claude/settings.json`
-- Windows: `%APPDATA%\claude\settings.json`
+1. [`mt-push-notify.sh`](mt-push-notify.sh) を `~/.claude/hooks/` にダウンロード
+2. `__MT_DEVICE_SECRET__` をデバイスシークレットに置換
+3. 実行権限を付与: `chmod +x ~/.claude/hooks/mt-push-notify.sh`
+4. [`hooks-template.json`](hooks-template.json) を `~/.claude/settings.json` にマージ
 
 ## 詳しいセットアップ手順
 
