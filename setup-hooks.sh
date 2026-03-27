@@ -8,7 +8,31 @@
 
 set -e
 
-DEVICE_SECRET="${1:-}"
+# --- Parse arguments ---
+DEVICE_SECRET=""
+CLEANUP_SECRET=""
+AUTO_YES=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --cleanup)
+      shift
+      CLEANUP_SECRET="${1:-}"
+      shift
+      ;;
+    --yes)
+      AUTO_YES=true
+      shift
+      ;;
+    *)
+      if [ -z "$DEVICE_SECRET" ]; then
+        DEVICE_SECRET="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
 SCRIPT_URL="https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/mt-push-notify.sh"
 
 # --- Validation ---
@@ -17,6 +41,10 @@ if [ -z "$DEVICE_SECRET" ]; then
   echo ""
   echo "Usage:"
   echo "  curl -sL https://raw.githubusercontent.com/Jaga-Studio/mt-push-hooks/main/setup-hooks.sh | sh -s YOUR-DEVICE-SECRET"
+  echo ""
+  echo "Options:"
+  echo "  --yes                    Skip confirmation prompt"
+  echo "  --cleanup OLD-SECRET     Deregister old secret from relay"
   echo ""
   echo "Get your Device Secret from MT → Settings → Push Notifications."
   exit 1
@@ -27,12 +55,44 @@ if [ ${#DEVICE_SECRET} -lt 10 ]; then
   exit 1
 fi
 
+if [ -n "$CLEANUP_SECRET" ] && [ ${#CLEANUP_SECRET} -lt 10 ]; then
+  echo "Error: Cleanup secret looks too short. Please check and try again."
+  exit 1
+fi
+
 # --- Check for Node.js ---
 if ! command -v node >/dev/null 2>&1; then
   echo "Error: Node.js is required but not found."
   echo "Claude Code requires Node.js, so it should already be installed."
   echo "Install Node.js from https://nodejs.org/ and try again."
   exit 1
+fi
+
+# --- Confirmation prompt ---
+if [ "$AUTO_YES" = false ]; then
+  echo ""
+  echo "MT Push Hooks Setup"
+  echo "==================="
+  echo ""
+  echo "This script will:"
+  echo "  1. Create ~/.claude/hooks/mt-push-notify.sh"
+  echo "  2. Modify ~/.claude/settings.json (backup will be created)"
+  if [ -n "$CLEANUP_SECRET" ]; then
+    echo "  3. Deregister old secret from relay server"
+  fi
+  echo ""
+  echo "Note: This modifies your Claude Code configuration."
+  echo "We are not responsible for any issues that may arise."
+  echo "If you prefer, you can set up manually:"
+  echo "  https://jaga-farm.com/mt/getting-started.html"
+  echo ""
+  printf "Proceed? [y/N] "
+  read -r REPLY
+  if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+    echo "Aborted. No changes were made."
+    exit 0
+  fi
+  echo ""
 fi
 
 # --- Download and install mt-push-notify.sh ---
@@ -157,6 +217,15 @@ if (mode === "upgrade") {
   console.log("Hooks upgraded successfully!");
 }
 ' "$SCRIPT_PATH"
+
+# --- Cleanup old secret ---
+if [ -n "$CLEANUP_SECRET" ]; then
+  echo "Deregistering old secret from relay..."
+  curl -s -X DELETE "https://mt-push.jaga-farm.com/v1/register" \
+    -H "Content-Type: application/json" \
+    -d "{\"deviceSecret\":\"$CLEANUP_SECRET\"}" > /dev/null 2>&1 || true
+  echo "Old secret deregistered."
+fi
 
 echo ""
 echo "✅ MT Push hooks installed successfully!"
